@@ -127,7 +127,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
         
         if (output_dets)
         {
-            std::string json = "[";
+            std::string json = "JSON$$$[";
             for (int i = 0; i < dets.size(); i++)
             {
                 if (i != 0)
@@ -140,7 +140,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
         
         if (output_image)
         {
-            cv::imwrite("../../images/18-01-pm/result.jpg", result_img);
+            cv::imwrite(base_path + "/result.jpg", result_img);
         }
     }
     std::cout << "Finished taking pictures!" << std::endl;
