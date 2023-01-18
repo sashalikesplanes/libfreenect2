@@ -92,11 +92,13 @@ SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 # dependencies
 FIND_PACKAGE(PkgConfig)    # try find PKGConfig as it will be used if found
 FIND_PACKAGE(LibUSB REQUIRED)
+FIND_PACKAGE(OpenCV REQUIRED)
 
 # Add includes
 INCLUDE_DIRECTORIES(
   "${MY_DIR}/include"
   "${MY_DIR}/include/internal"
+  ${OpenCV_INCLUDE_DIRS}
   ${PROJECT_BINARY_DIR} # for generated headers
   ${LIBFREENECT2_THREADING_INCLUDE_DIR}
   ${LibUSB_INCLUDE_DIRS}
@@ -435,7 +437,7 @@ IF(MSVC AND NOT BUILD_SHARED_LIBS)
 ENDIF()
 STRING(REPLACE ";" "\n " LIBRARIES_STRING "${LIBRARIES}")
 MESSAGE(STATUS "Linking with these libraries: \n ${LIBRARIES_STRING}")
-TARGET_LINK_LIBRARIES(freenect2 ${LIBRARIES})
+TARGET_LINK_LIBRARIES(freenect2 ${LIBRARIES} ${OpenCV_LIBS})
 
 CONFIGURE_FILE(freenect2.cmake.in "${PROJECT_BINARY_DIR}/freenect2Config.cmake" @ONLY)
 CONFIGURE_FILE(freenect2Version.cmake.in "${PROJECT_BINARY_DIR}/freenect2ConfigVersion.cmake" @ONLY)

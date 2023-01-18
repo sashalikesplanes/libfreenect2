@@ -26,6 +26,14 @@ SET(flextGL_INCLUDE_DIRS ${freenect2_ROOT_DIR}/src) # for flextGL.h
 FIND_PACKAGE(PkgConfig)    # try find PKGConfig as it will be used if found
 LIST(APPEND CMAKE_MODULE_PATH ${freenect2_ROOT_DIR}/cmake_modules) # FindGLFW3.cmake
 
+set(ncnn_DIR "/Users/sasha/Documents/code/repos/ncnn/build/install/lib/cmake/ncnn/")
+find_package(ncnn REQUIRED)
+if(NOT TARGET ncnn)
+    message(WARNING "ncnn NOT FOUND!  Please set ncnn_DIR environment variable")
+else()
+    message("ncnn FOUND ")
+endif()
+
 IF(TARGET freenect2)
   MESSAGE(STATUS "Using in-tree freenect2 target")
   SET(freenect2_LIBRARIES freenect2)
@@ -41,6 +49,8 @@ INCLUDE_DIRECTORIES(
 
 SET(Protonect_src
   Protonect.cpp
+  nanodet.cpp
+  nanodet.h
 )
 
 SET(Protonect_LIBRARIES
@@ -79,6 +89,7 @@ ADD_EXECUTABLE(Protonect
 
 TARGET_LINK_LIBRARIES(Protonect
   ${Protonect_LIBRARIES}
+  ncnn
 )
 
 IF(WIN32)
