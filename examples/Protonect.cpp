@@ -106,7 +106,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
     NanoDet detector = NanoDet("./nanodet.param", "./nanodet.bin", false);
     int i = 0;
     int img_multiple = 10;
-    while (!protonect_shutdown && i < img_multiple * 1000)
+    while (!protonect_shutdown)
     {
         mat_lock.lock();
         if (test_ir3.empty())
@@ -143,7 +143,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
             cv::imwrite(base_path + "/result.jpg", result_img);
         }
     }
-    std::cout << "Finished taking pictures!" << std::endl;
+    std::cerr << "Finished detection loop" << std::endl;
 }
 
 
