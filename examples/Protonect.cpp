@@ -120,7 +120,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
             cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", test_ir3);
         }
 
-        auto results = detector.resize_detect_and_draw(test_ir3);
+        auto results = detector.resize_detect_and_draw(test_ir3, output_image);
         mat_lock.unlock();
         std::vector<BoxInfo> dets = std::get<0>(results);
         cv::Mat result_img = std::get<1>(results);
@@ -134,7 +134,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
                     json += ", ";
                 json += "{\"label\": " + std::to_string(dets[i].label) + ", \"score\": " + std::to_string(dets[i].score) + ", \"x1\": " + std::to_string(dets[i].x1) + ", \"y1\": " + std::to_string(dets[i].y1) + ", \"x2\": " + std::to_string(dets[i].x2) + ", \"y2\": " + std::to_string(dets[i].y2) + "}";
             }
-            json += "]";
+            json += "]$$$";
             std::cout << json << std::endl;
         }
         

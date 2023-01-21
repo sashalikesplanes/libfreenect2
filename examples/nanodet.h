@@ -146,7 +146,7 @@ public:
     std::vector<int> strides = { 8, 16, 32, 64 }; // strides of the multi-level feature.
 
     std::vector<BoxInfo> detect(cv::Mat image, float score_threshold, float nms_threshold);
-    std::tuple<std::vector<BoxInfo>, cv::Mat> resize_detect_and_draw(cv::Mat& image);
+    std::tuple<std::vector<BoxInfo>, cv::Mat> resize_detect_and_draw(cv::Mat& image, bool output_image);
 
 
     std::vector<std::string> labels{ "Hands" };

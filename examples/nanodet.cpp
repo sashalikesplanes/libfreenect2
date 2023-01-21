@@ -262,7 +262,7 @@ std::vector<BoxInfo> NanoDet::detect(cv::Mat image, float score_threshold, float
     return dets;
 }
 
-std::tuple<std::vector<BoxInfo>, cv::Mat> NanoDet::resize_detect_and_draw(cv::Mat& image)
+std::tuple<std::vector<BoxInfo>, cv::Mat> NanoDet::resize_detect_and_draw(cv::Mat& image, bool output_image)
 {
     object_rect effect_roi;
     float score_threshold = 0.4;
@@ -270,8 +270,34 @@ std::tuple<std::vector<BoxInfo>, cv::Mat> NanoDet::resize_detect_and_draw(cv::Ma
     cv::Mat dst;
     resize_uniform(image, dst, cv::Size(this->input_size[1], this->input_size[0]), effect_roi);
     std::vector<BoxInfo> dets = detect(dst, score_threshold, nms_threshold);
-    auto result_image = draw_bboxes(image, dets, effect_roi);
-    return std::make_tuple(dets, result_image);
+    // loop over all dets and convert to original image size
+
+    cv::Mat result_image;
+    if (output_image)
+    {
+        result_image = draw_bboxes(image, dets, effect_roi);
+    }
+    else
+    {
+        result_image = image;
+    }
+
+    int src_w = image.cols;
+    int src_h = image.rows;
+    int dst_w = effect_roi.width;
+    int dst_h = effect_roi.height;
+    float width_ratio = (float)src_w / (float)dst_w;
+    float height_ratio = (float)src_h / (float)dst_h;
+
+    for (auto& bbox : dets)
+    {
+        bbox.x1 = (bbox.x1 - effect_roi.x) * width_ratio;
+        bbox.y1 = (bbox.y1 - effect_roi.y) * height_ratio;
+        bbox.x2 = (bbox.x2 - effect_roi.x) * width_ratio;
+        bbox.y2 = (bbox.y2 - effect_roi.y) * height_ratio;
+    }
+
+    return std::make_tuple(dets, image);
 }
 
 void NanoDet::decode_infer(ncnn::Mat& feats, std::vector<CenterPrior>& center_priors, float threshold, std::vector<std::vector<BoxInfo>>& results)
