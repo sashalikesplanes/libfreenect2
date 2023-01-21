@@ -4,6 +4,7 @@
 //
 
 #include "nanodet.h"
+#include <cpu.h>
 #include <benchmark.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -13,21 +14,7 @@
 
 cv::Mat draw_bboxes(const cv::Mat& bgr, const std::vector<BoxInfo>& bboxes, object_rect effect_roi)
 {
-    static const char* class_names[] = { "person", "bicycle", "car", "motorcycle", "airplane", "bus",
-                                        "train", "truck", "boat", "traffic light", "fire hydrant",
-                                        "stop sign", "parking meter", "bench", "bird", "cat", "dog",
-                                        "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-                                        "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-                                        "skis", "snowboard", "sports ball", "kite", "baseball bat",
-                                        "baseball glove", "skateboard", "surfboard", "tennis racket",
-                                        "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
-                                        "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
-                                        "hot dog", "pizza", "donut", "cake", "chair", "couch",
-                                        "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
-                                        "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
-                                        "toaster", "sink", "refrigerator", "book", "clock", "vase",
-                                        "scissors", "teddy bear", "hair drier", "toothbrush"
-    };
+    static const char* class_names[] = { "Hands" };
 
     cv::Mat image = bgr.clone();
     int src_w = image.cols;
@@ -196,6 +183,7 @@ NanoDet* NanoDet::detector = nullptr;
 NanoDet::NanoDet(const char* param, const char* bin, bool useGPU)
 {
     this->Net = new ncnn::Net();
+    this->Net->opt.num_threads = ncnn::get_cpu_count();
     // opt
 #if NCNN_VULKAN
     this->hasGPU = ncnn::get_gpu_count() > 0;
@@ -205,6 +193,9 @@ NanoDet::NanoDet(const char* param, const char* bin, bool useGPU)
     std::cout << "LOading param and bin " << param << " " << bin << std::endl;
     this->Net->load_param(param);
     this->Net->load_model(bin);
+    
+    std::cout << "Using vulkan compute? : " << this->Net->opt.use_vulkan_compute << std::endl;
+    std::cout << "CPU Count: " << this->Net->opt.num_threads << std::endl;
 }
 
 NanoDet::~NanoDet()
@@ -233,8 +224,8 @@ std::vector<BoxInfo> NanoDet::detect(cv::Mat image, float score_threshold, float
     //double start = ncnn::get_current_time();
 
     auto ex = this->Net->create_extractor();
-    ex.set_light_mode(false);
-    ex.set_num_threads(4);
+    ex.set_light_mode(true);
+    // ex.set_num_threads(ncnn::get_cpu_count());
 #if NCNN_VULKAN
     ex.set_vulkan_compute(this->hasGPU);
 #endif

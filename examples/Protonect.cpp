@@ -103,7 +103,7 @@ void get_latest_frames()
 
 void get_detections(bool output_dets, bool output_image, bool input_image, std::string base_path)
 {
-    NanoDet detector = NanoDet("./nanodet.param", "./nanodet.bin", false);
+    NanoDet detector = NanoDet("./nanodet-train2.param", "./nanodet-train2.bin", true);
     int i = 0;
     int img_multiple = 10;
     while (!protonect_shutdown)
