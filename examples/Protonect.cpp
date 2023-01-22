@@ -42,23 +42,30 @@ using namespace cv;
 
 //! [context]
 libfreenect2::Freenect2 freenect2;
+// make a second device
 libfreenect2::Freenect2Device *dev = 0;
+libfreenect2::Freenect2Device *dev1 = 0;
+// make a second pipeline
 libfreenect2::PacketPipeline *pipeline = 0;
+libfreenect2::PacketPipeline *pipeline1 = 0;
 //! [context]
 
 //! [listeners]
-libfreenect2::SyncMultiFrameListener listener(libfreenect2::Frame::Color |
-                                              libfreenect2::Frame::Depth |
-                                              libfreenect2::Frame::Ir);
+// make a second listener
+libfreenect2::SyncMultiFrameListener listener(libfreenect2::Frame::Ir);
+libfreenect2::SyncMultiFrameListener listener1(libfreenect2::Frame::Ir);
+// make second frames
 libfreenect2::FrameMap frames;
-libfreenect2::Registration* registration;
+libfreenect2::FrameMap frames1;
 
 bool protonect_shutdown = false; // Whether the running application should shut down.
 
-cv::Mat rgbmat, depthmat, depthmatUndistorted, irmat, rgbd, rgbd2, test_ir, test_ir3;
-libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4), depth2rgb(1920, 1080 + 2, 4); // check here (https://github.com/OpenKinect/libfreenect2/issues/337) and here (https://github.com/OpenKinect/libfreenect2/issues/464) why depth2rgb image should be bigger
+// double all these 
+cv::Mat irmat, scaled_ir, stacked_ir;
+cv::Mat irmat1, scaled_ir1, stacked_ir1;
 
 std::mutex mat_lock;
+std::mutex mat_lock1;
 
 void sigint_handler(int s)
 {
@@ -67,37 +74,20 @@ void sigint_handler(int s)
 
 void get_latest_frames()
 {
-    //! [loop start]
     while(!protonect_shutdown)
     {
         listener.waitForNewFrame(frames);
-        libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
         libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
-        libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
-        //! [loop start]
 
         mat_lock.lock();
-        cv::Mat(rgb->height, rgb->width, CV_8UC4, rgb->data).copyTo(rgbmat);
         cv::Mat(ir->height, ir->width, CV_32FC1, ir->data).copyTo(irmat);
-        cv::Mat(depth->height, depth->width, CV_32FC1, depth->data).copyTo(depthmat);
-        
-        irmat.convertTo(test_ir, CV_8UC1, 255.0/4096.0);
-        cv::merge(std::vector<cv::Mat>(3, test_ir), test_ir3);
-        
-        //! [registration]
-        registration->apply(rgb, depth, &undistorted, &registered, true, &depth2rgb);
-        //! [registration]
-
-        cv::Mat(undistorted.height, undistorted.width, CV_32FC1, undistorted.data).copyTo(depthmatUndistorted);
-        cv::Mat(registered.height, registered.width, CV_8UC4, registered.data).copyTo(rgbd);
-        cv::Mat(depth2rgb.height, depth2rgb.width, CV_32FC1, depth2rgb.data).copyTo(rgbd2);
+        irmat.convertTo(scaled_ir, CV_8UC1, 255.0/4096.0);
+        cv::merge(std::vector<cv::Mat>(3, scaled_ir), stacked_ir);
         mat_lock.unlock();
-        
 
-    //! [loop end]
         listener.release(frames);
+        // repeat for second device
     }
-    //! [loop end]
 
 }
 
@@ -106,41 +96,50 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
     NanoDet detector = NanoDet("./nanodet-train2.param", "./nanodet-train2.bin", true);
     int i = 0;
     int img_multiple = 10;
+    bool first = true;
     while (!protonect_shutdown)
     {
-        mat_lock.lock();
-        if (test_ir3.empty())
+        if (first)
         {
-            mat_lock.unlock();
-            continue;
-        }
-        if (input_image && i++ % img_multiple == 0)
-        {
-            i++;
-            cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", test_ir3);
-        }
-
-        auto results = detector.resize_detect_and_draw(test_ir3, output_image, score_threshold, nms_threshold);
-        mat_lock.unlock();
-        std::vector<BoxInfo> dets = std::get<0>(results);
-        cv::Mat result_img = std::get<1>(results);
-        
-        if (output_dets)
-        {
-            std::string json = "JSON$$$[";
-            for (int i = 0; i < dets.size(); i++)
+            first = true;
+            mat_lock.lock();
+            if (stacked_ir.empty())
             {
-                if (i != 0)
-                    json += ", ";
-                json += "{\"label\": " + std::to_string(dets[i].label) + ", \"score\": " + std::to_string(dets[i].score) + ", \"x1\": " + std::to_string(dets[i].x1) + ", \"y1\": " + std::to_string(dets[i].y1) + ", \"x2\": " + std::to_string(dets[i].x2) + ", \"y2\": " + std::to_string(dets[i].y2) + "}";
+                mat_lock.unlock();
+                continue;
             }
-            json += "]$$$";
-            std::cout << json << std::endl;
+            if (input_image && i++ % img_multiple == 0)
+            {
+                i++;
+                cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", stacked_ir);
+            }
+
+            auto results = detector.resize_detect_and_draw(stacked_ir, output_image, score_threshold, nms_threshold);
+            mat_lock.unlock();
+            std::vector<BoxInfo> dets = std::get<0>(results);
+            cv::Mat result_img = std::get<1>(results);
+            
+            if (output_dets)
+            {
+                std::string json = "JSON$$$[";
+                for (int i = 0; i < dets.size(); i++)
+                {
+                    if (i != 0)
+                        json += ", ";
+                    json += "{\"source\": \"windowCam\", \"label\": " + std::to_string(dets[i].label) + ", \"score\": " + std::to_string(dets[i].score) + ", \"x1\": " + std::to_string(dets[i].x1) + ", \"y1\": " + std::to_string(dets[i].y1) + ", \"x2\": " + std::to_string(dets[i].x2) + ", \"y2\": " + std::to_string(dets[i].y2) + "}";
+                }
+                json += "]$$$";
+                std::cout << json << std::endl;
+            }
+            
+            if (output_image)
+            {
+                cv::imwrite(base_path + "/result0.jpg", result_img);
+            }
         }
-        
-        if (output_image)
+        else
         {
-            cv::imwrite(base_path + "/result.jpg", result_img);
+            // do second device
         }
     }
     std::cerr << "Finished detection loop" << std::endl;
@@ -214,7 +213,6 @@ int main(int argc, char *argv[])
     signal(SIGINT, sigint_handler);
 
 
-    dev->setColorFrameListener(&listener);
     dev->setIrAndDepthFrameListener(&listener);
     //! [listeners]
 
@@ -226,7 +224,6 @@ int main(int argc, char *argv[])
     //! [start]
 
     //! [registration setup]
-    registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
     //! [registration setup]
     //
     std::thread frame_thread(get_latest_frames);
@@ -247,46 +244,6 @@ int main(int argc, char *argv[])
     dev->close();
     //! [stop]
 
-    delete registration;
-
     std::cout << "Streaming Ends!" << std::endl;
     return 0;
 }
-
-
-// void display()
-// {
-//     std::vector<BoxInfo> dets;
-//     switch (arg)
-//     {
-//     case 1:
-//         cv::imshow("rgb", rgbmat);
-//         break;
-//     case 2:
-//         cv::imshow("ir", irmat / 4096.0f);
-//         break;
-//     case 3:
-//         cv::imshow("depth", depthmat / 4096.0f);
-//         break;
-//     case 4:
-//         cv::imshow("undistorted", depthmatUndistorted / 4096.0f);
-//         break;
-//     case 5:
-//         cv::imshow("registered", rgbd);
-//         break;
-//     case 6:
-//         cv::imshow("depth2RGB", rgbd2 / 4096.0f);
-//         break;
-//     case 7:
-//         cv::imshow("test_ir", test_ir3);
-//         break;
-//     case 8:
-//         
-//         break;
-//     case 9:
-//         break;
-//     }
-// }
-
-// //! [nanodet]
-// //! [nanodet]
