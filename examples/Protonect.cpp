@@ -101,7 +101,7 @@ void get_latest_frames()
 
 }
 
-void get_detections(bool output_dets, bool output_image, bool input_image, std::string base_path)
+void get_detections(bool output_dets, bool output_image, bool input_image, std::string base_path, float score_threshold, float nms_threshold)
 {
     NanoDet detector = NanoDet("./nanodet-train2.param", "./nanodet-train2.bin", true);
     int i = 0;
@@ -120,7 +120,7 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
             cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", test_ir3);
         }
 
-        auto results = detector.resize_detect_and_draw(test_ir3, output_image);
+        auto results = detector.resize_detect_and_draw(test_ir3, output_image, score_threshold, nms_threshold);
         mat_lock.unlock();
         std::vector<BoxInfo> dets = std::get<0>(results);
         cv::Mat result_img = std::get<1>(results);
@@ -156,8 +156,10 @@ int main(int argc, char *argv[])
     bool output_image = false;
     bool input_image = false;
     std::string base_path = "";
+    float score_threshold = 0.5;
+    float nms_threshold = 0.3;
     
-    if (argc >= 5)
+    if (argc >= 7)
     {
         if (strcmp(argv[1], "1") == 0)
             output_dets = true;
@@ -172,6 +174,9 @@ int main(int argc, char *argv[])
         std::cout << "Usage: ./Protonect dets (0|1) out (0|1) in (0|1) path/to/save" << std::endl;
         return -1;
     }
+    
+    score_threshold = std::stof(argv[5]);
+    nms_threshold = std::stof(argv[6]);
     
     
     
@@ -226,7 +231,7 @@ int main(int argc, char *argv[])
     //
     std::thread frame_thread(get_latest_frames);
     frame_thread.detach();
-    std::thread nanodet_thread(get_detections, output_dets, output_image, input_image, base_path);
+    std::thread nanodet_thread(get_detections, output_dets, output_image, input_image, base_path, score_threshold, nms_threshold);
     nanodet_thread.detach();
     
     int i = 1;

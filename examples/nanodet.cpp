@@ -262,11 +262,9 @@ std::vector<BoxInfo> NanoDet::detect(cv::Mat image, float score_threshold, float
     return dets;
 }
 
-std::tuple<std::vector<BoxInfo>, cv::Mat> NanoDet::resize_detect_and_draw(cv::Mat& image, bool output_image)
+std::tuple<std::vector<BoxInfo>, cv::Mat> NanoDet::resize_detect_and_draw(cv::Mat& image, bool output_image, float score_threshold, float nms_threshold)
 {
     object_rect effect_roi;
-    float score_threshold = 0.4;
-    float nms_threshold = 0.5;
     cv::Mat dst;
     resize_uniform(image, dst, cv::Size(this->input_size[1], this->input_size[0]), effect_roi);
     std::vector<BoxInfo> dets = detect(dst, score_threshold, nms_threshold);
