@@ -14,7 +14,7 @@
 -- Contact: Chih-Yao Ma at <cyma@gatech.edu>
 
 --Build option
-g++ KinectOneStream.cpp -std=c++11 -o out `pkg-config opencv --cflags --libs` `pkg-config freenect2 --cflags --libs` 
+g++ KinectOneStream.cpp -std=c++11 -o out `pkg-config opencv --cflags --libs` `pkg-config freenect2 --cflags --libs`
 
 */
 
@@ -34,8 +34,8 @@ g++ KinectOneStream.cpp -std=c++11 -o out `pkg-config opencv --cflags --libs` `p
 //! [headers]
 //
 #include "nanodet.h"
-#include <thread>         // std::thread
-#include <mutex>          // std::mutex, std::lock
+#include <thread> // std::thread
+#include <mutex>  // std::mutex, std::lock
 
 using namespace std;
 using namespace cv;
@@ -43,52 +43,51 @@ using namespace cv;
 //! [context]
 libfreenect2::Freenect2 freenect2;
 // make a second device
-libfreenect2::Freenect2Device *dev = 0;
-libfreenect2::Freenect2Device *dev1 = 0;
+libfreenect2::Freenect2Device *device_window = 0;
+libfreenect2::Freenect2Device *device_corridor = 0;
 // make a second pipeline
-libfreenect2::PacketPipeline *pipeline = 0;
-libfreenect2::PacketPipeline *pipeline1 = 0;
+libfreenect2::PacketPipeline *pipeline_window = 0;
+libfreenect2::PacketPipeline *pipeline_corridor = 0;
 //! [context]
 
 //! [listeners]
 // make a second listener
-libfreenect2::SyncMultiFrameListener listener(libfreenect2::Frame::Ir);
-libfreenect2::SyncMultiFrameListener listener1(libfreenect2::Frame::Ir);
+libfreenect2::SyncMultiFrameListener listener_window(libfreenect2::Frame::Ir);
+libfreenect2::SyncMultiFrameListener listener_corridor(libfreenect2::Frame::Ir);
 // make second frames
 libfreenect2::FrameMap frames;
 libfreenect2::FrameMap frames1;
 
 bool protonect_shutdown = false; // Whether the running application should shut down.
 
-// double all these 
-cv::Mat irmat, scaled_ir, stacked_ir;
-cv::Mat irmat1, scaled_ir1, stacked_ir1;
+// double all these
+cv::Mat irmat_window, scaled_ir_window, stacked_ir_window;
+cv::Mat irmat_corridor, scaled_ir_corridor, stacked_ir_corridor;
 
-std::mutex mat_lock;
-std::mutex mat_lock1;
+std::mutex mat_lock_window;
+std::mutex mat_lock_corridor;
 
 void sigint_handler(int s)
 {
-  protonect_shutdown = true;
+    protonect_shutdown = true;
 }
 
 void get_latest_frames()
 {
-    while(!protonect_shutdown)
+    while (!protonect_shutdown)
     {
-        listener.waitForNewFrame(frames);
+        listener_window.waitForNewFrame(frames);
         libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
 
-        mat_lock.lock();
-        cv::Mat(ir->height, ir->width, CV_32FC1, ir->data).copyTo(irmat);
-        irmat.convertTo(scaled_ir, CV_8UC1, 255.0/4096.0);
-        cv::merge(std::vector<cv::Mat>(3, scaled_ir), stacked_ir);
-        mat_lock.unlock();
+        mat_lock_window.lock();
+        cv::Mat(ir->height, ir->width, CV_32FC1, ir->data).copyTo(irmat_window);
+        irmat_window.convertTo(scaled_ir_window, CV_8UC1, 255.0 / 4096.0);
+        cv::merge(std::vector<cv::Mat>(3, scaled_ir_window), stacked_ir_window);
+        mat_lock_window.unlock();
 
-        listener.release(frames);
+        listener_window.release(frames);
         // repeat for second device
     }
-
 }
 
 void get_detections(bool output_dets, bool output_image, bool input_image, std::string base_path, float score_threshold, float nms_threshold)
@@ -96,29 +95,29 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
     NanoDet detector = NanoDet("./nanodet-train2.param", "./nanodet-train2.bin", true);
     int i = 0;
     int img_multiple = 10;
-    bool first = true;
+    bool next_window = true;
     while (!protonect_shutdown)
     {
-        if (first)
+        if (next_window)
         {
-            first = true;
-            mat_lock.lock();
-            if (stacked_ir.empty())
+            next_window = true; // TODO set this to false to get it all from corridor
+            mat_lock_window.lock();
+            if (stacked_ir_window.empty())
             {
-                mat_lock.unlock();
+                mat_lock_window.unlock();
                 continue;
             }
             if (input_image && i++ % img_multiple == 0)
             {
                 i++;
-                cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", stacked_ir);
+                cv::imwrite(base_path + "/" + std::to_string(i) + ".jpg", stacked_ir_window);
             }
 
-            auto results = detector.resize_detect_and_draw(stacked_ir, output_image, score_threshold, nms_threshold);
-            mat_lock.unlock();
+            auto results = detector.resize_detect_and_draw(stacked_ir_window, output_image, score_threshold, nms_threshold);
+            mat_lock_window.unlock();
             std::vector<BoxInfo> dets = std::get<0>(results);
             cv::Mat result_img = std::get<1>(results);
-            
+
             if (output_dets)
             {
                 std::string json = "JSON$$$[";
@@ -131,10 +130,10 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
                 json += "]$$$";
                 std::cout << json << std::endl;
             }
-            
+
             if (output_image)
             {
-                cv::imwrite(base_path + "/result0.jpg", result_img);
+                cv::imwrite(base_path + "/result_window.jpg", result_img);
             }
         }
         else
@@ -144,7 +143,6 @@ void get_detections(bool output_dets, bool output_image, bool input_image, std::
     }
     std::cerr << "Finished detection loop" << std::endl;
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -157,7 +155,7 @@ int main(int argc, char *argv[])
     std::string base_path = "";
     float score_threshold = 0.5;
     float nms_threshold = 0.3;
-    
+
     if (argc >= 7)
     {
         if (strcmp(argv[1], "1") == 0)
@@ -173,19 +171,16 @@ int main(int argc, char *argv[])
         std::cout << "Usage: ./Protonect dets (0|1) out (0|1) in (0|1) path/to/save" << std::endl;
         return -1;
     }
-    
+
     score_threshold = std::stof(argv[5]);
     nms_threshold = std::stof(argv[6]);
-    
-    
-    
+
     std::cout << "Output detections: " << output_dets << std::endl;
     std::cout << "Output image: " << output_image << std::endl;
     std::cout << "Input image: " << input_image << std::endl;
 
-
     //! [discovery]
-    if(freenect2.enumerateDevices() == 0)
+    if (freenect2.enumerateDevices() == 0)
     {
         std::cout << "no device connected!" << std::endl;
         return -1;
@@ -195,16 +190,18 @@ int main(int argc, char *argv[])
 
     std::cout << "SERIAL: " << serial << std::endl;
 
-    if(pipeline)
+    if (pipeline_window)
     {
         //! [open]
-        dev = freenect2.openDevice(serial, pipeline);
+        device_window = freenect2.openDevice(serial, pipeline_window);
         //! [open]
-    } else {
-        dev = freenect2.openDevice(serial);
+    }
+    else
+    {
+        device_window = freenect2.openDevice(serial);
     }
 
-    if(dev == 0)
+    if (device_window == 0)
     {
         std::cout << "failure opening device!" << std::endl;
         return -1;
@@ -212,15 +209,14 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, sigint_handler);
 
-
-    dev->setIrAndDepthFrameListener(&listener);
+    device_window->setIrAndDepthFrameListener(&listener_window);
     //! [listeners]
 
     //! [start]
-    dev->start();
+    device_window->start();
 
-    std::cout << "device serial: " << dev->getSerialNumber() << std::endl;
-    std::cout << "device firmware: " << dev->getFirmwareVersion() << std::endl;
+    std::cout << "device serial: " << device_window->getSerialNumber() << std::endl;
+    std::cout << "device firmware: " << device_window->getFirmwareVersion() << std::endl;
     //! [start]
 
     //! [registration setup]
@@ -230,18 +226,18 @@ int main(int argc, char *argv[])
     frame_thread.detach();
     std::thread nanodet_thread(get_detections, output_dets, output_image, input_image, base_path, score_threshold, nms_threshold);
     nanodet_thread.detach();
-    
+
     int i = 1;
-    while(!protonect_shutdown)
+    while (!protonect_shutdown)
     {
-        cin>>i;
+        cin >> i;
         if (!i)
             protonect_shutdown = true;
-    } 
+    }
 
     //! [stop]
-    dev->stop();
-    dev->close();
+    device_window->stop();
+    device_window->close();
     //! [stop]
 
     std::cout << "Streaming Ends!" << std::endl;
